@@ -1,8 +1,8 @@
 @echo off
-title BitLocker Full Disable Tool
+title Advanced BitLocker Decryption Tool
 color 0A
 
-:: ===== Check Administrator =====
+:: ===== Admin Check =====
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo Requesting Administrator Privileges...
@@ -11,33 +11,73 @@ if %errorlevel% neq 0 (
 )
 
 cls
-echo ==========================================
-echo        BitLocker Full Disable Tool
-echo ==========================================
+echo ===============================================
+echo        Advanced BitLocker Disable Tool
+echo ===============================================
 echo.
 
-:: ===== Show Current Status =====
-echo Current BitLocker Status:
-manage-bde -status C:
+:: ===== Select Drive =====
+set /p drive=Enter drive letter to decrypt (Example: C): 
+
+if "%drive%"=="" (
+    echo No drive entered. Exiting...
+    pause
+    exit
+)
+
+echo.
+echo Checking BitLocker status on %drive%:
+manage-bde -status %drive%:
 echo.
 
 echo Clearing stored auto-unlock keys...
-manage-bde -autounlock -ClearAllKeys C:
+manage-bde -autounlock -ClearAllKeys %drive%:
 echo.
 
-echo Turning OFF BitLocker on C: ...
-manage-bde -off C:
+echo Starting decryption...
+manage-bde -off %drive%:
 echo.
 
-echo ==========================================
-echo Decryption Started.
-echo Monitoring progress...
-echo Press CTRL + C to stop monitoring.
-echo ==========================================
+echo ===============================================
+echo Live Decryption Monitor Started
+echo Press CTRL+C to exit monitoring
+echo ===============================================
 echo.
 
-:loop
-timeout /t 10 >nul
+:: ===== Live Monitoring Loop =====
+:monitor
+for /f "tokens=3" %%A in ('manage-bde -status %drive% ^| find "Percentage Encrypted"') do set percent=%%A
+set percent=%percent:~0,-1%
+
 cls
-manage-bde -status C:
-goto loop
+echo ===============================================
+echo      BitLocker Decryption Progress
+echo ===============================================
+echo.
+echo Drive: %drive%:
+echo Remaining Encrypted: %percent%%
+echo.
+
+:: ===== Progress Bar =====
+setlocal enabledelayedexpansion
+set /a done=100-%percent%
+set "bar="
+for /l %%B in (1,1,!done!) do set "bar=!bar!#"
+echo Progress:
+echo [!bar!]
+endlocal
+
+echo.
+manage-bde -status %drive% | find "Conversion Status"
+echo.
+
+if "%percent%"=="0" (
+    echo ===============================================
+    echo     Decryption Completed Successfully!
+    echo ===============================================
+    pause
+    exit
+)
+
+timeout /t 10 >nul
+goto monitor
